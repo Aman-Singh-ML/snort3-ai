@@ -1,0 +1,24 @@
+getting following error while compiling test file:
+
+aman@aman-vm:~/snort3_ai/snort3/build$ make tcp_session_test
+[  0%] Building CXX object src/stream/tcp/test/CMakeFiles/tcp_session_test.dir/tcp_session_test.cc.o
+/home/aman/snort3_ai/snort3/src/stream/tcp/test/tcp_session_test.cc:36:10: fatal error: stream_tcp.h: No such file or directory
+   36 | #include "stream_tcp.h"
+      |          ^~~~~~~~~~~~~~
+compilation terminated.
+make[3]: *** [src/stream/tcp/test/CMakeFiles/tcp_session_test.dir/build.make:76: src/stream/tcp/test/CMakeFiles/tcp_session_test.dir/tcp_session_test.cc.o] Error 1
+make[2]: *** [CMakeFiles/Makefile2:6837: src/stream/tcp/test/CMakeFiles/tcp_session_test.dir/all] Error 2
+make[1]: *** [CMakeFiles/Makefile2:6844: src/stream/tcp/test/CMakeFiles/tcp_session_test.dir/rule] Error 2
+make: *** [Makefile:2058: tcp_session_test] Error 2
+aman@aman-vm:~/snort3_ai/snort3/build$ make tcp_session_test
+[  0%] Building CXX object src/stream/tcp/test/CMakeFiles/tcp_session_test.dir/tcp_session_test.cc.o
+/home/aman/snort3_ai/snort3/src/stream/tcp/test/tcp_session_test.cc:44:10: error: ‘void MockTcpEventLogger::log_tcp_events()’ marked ‘override’, but does not override
+   44 |     void log_tcp_events() override {}
+      |          ^~~~~~~~~~~~~~
+/home/aman/snort3_ai/snort3/src/stream/tcp/test/tcp_session_test.cc:45:10: error: ‘void MockTcpEventLogger::clear_tcp_events()’ marked ‘override’, but does not override
+45 |     void clear_tcp_events() override {}
+      |          ^~~~~~~~~~~~~~~~
+/home/aman/snort3_ai/snort3/src/stream/tcp/test/tcp_session_test.cc:46:10: error: ‘void MockTcpEventLogger::log_internal_event(uint32_t)’ marked ‘override’, but does not override
+   46 |     void log_internal_event(uint32_t /*sid*/) override {}
+      |          ^~~~~~~~~~~~~~~~~~
+/home/aman/snort3_ai/snort3/src/stream/tcp/test/tcp_session_test.cc:47:10: error: ‘void MockTcpEventLogger::set_tcp_even
