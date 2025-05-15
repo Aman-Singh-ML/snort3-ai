@@ -5,7 +5,7 @@ HOME_NET = "any"
 EXTERNAL_NET = "any"
 
 -- Include default variables
-include 'snort_defaults.lua'
+-- include 'snort_defaults.lua'
 
 -- Stream configuration with aggressive reassembly settings
 stream = { }
@@ -47,19 +47,25 @@ ips = {
     ]]
 }
 
--- Enable verbose logging and stats
+-- Configure logging
 logging = {
     show_year = true,
     console = true
 }
 
--- Enable alerts to see when the rule matches
-alerts = {
-    alert_with_interface_name = true,
-    output = 'full'
+-- Configure alert output
+-- Use alert_fast for basic alerting
+alert_fast = {
+    file = true,
+    packet = false
 }
 
--- Turn on all packet dumps for debugging
+-- For full packet details with alerts
+alert_full = {
+    file = true
+}
+
+-- Enable packet tracer for debugging
 packet_tracer = {
     enable = true
 }
