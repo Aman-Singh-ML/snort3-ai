@@ -1,30 +1,22 @@
--- TCP reassembler crash test configuration
-
+-- TCP reassembler crash test configuration - simplified version
 -- Define network setup
 HOME_NET = "any"
 EXTERNAL_NET = "any"
 
 -- Include default variables
--- include 'snort_defaults.lua'
+include 'snort_defaults.lua'
 
--- Stream configuration with aggressive reassembly settings
+-- Basic stream configuration
 stream = { }
 
-stream_tcp = {
-    -- Enable reassembly
+stream_tcp = { 
     policy = 'windows',
     
-    -- Flush on content
-    flush_factor = 0,
-    
-    -- Small segments more likely to trigger edge cases
+    -- Small segments to trigger edge cases
     small_segments = {
         count = 1,
         maximum_size = 1
     },
-    
-    -- Enable midstream pickups to test more edge cases
-    midstream = true,
     
     -- Set a small queue limit to force flush conditions
     queue_limit = { 
@@ -33,10 +25,12 @@ stream_tcp = {
     },
     
     -- Enable overlap processing
-    overlap_limit = 10,
-    
-    -- Enable reassembly for all ports
-    reassembly_ports = { all = true }
+    overlap_limit = 10
+}
+
+-- Enable stream inspection for all tcp traffic
+binder = {
+    { when = { proto = 'tcp' }, use = { type = 'stream' } }
 }
 
 -- Create a simple rule to trigger the reassembly
@@ -54,22 +48,17 @@ logging = {
 }
 
 -- Configure alert output
--- Use alert_fast for basic alerting
 alert_fast = {
     file = true,
     packet = false
 }
 
--- For full packet details with alerts
-alert_full = {
-    file = true
-}
-
--- Enable packet tracer for debugging
+-- Turn on all packet dumps for debugging
 packet_tracer = {
     enable = true
 }
 
+-- Performance monitoring
 profiler = {
     memory = { show = true },
     rules = { show = true }
