@@ -1,5 +1,4 @@
 from scapy.all import *
-import random
 
 def create_malformed_tcp_pcap():
     # Create a normal TCP handshake
