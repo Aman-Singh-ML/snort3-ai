@@ -1,6 +1,4 @@
 -- crash_config.lua
-require('snort_config')
-
 -- Configure stream settings to maximize vulnerability potential
 stream = { }
 
@@ -9,9 +7,11 @@ stream_tcp = {
     overlap_limit = 0,          -- Don't limit overlapping segments
     max_window = 65535,         -- Large window size
     session_timeout = 180,
-    max_queued_bytes = 4194304, -- Large queue size
-    max_queued_segs = 3072,     -- Large segment queue
-    reassemble_async = true,    -- Enable reassembly for all traffic
+    queue_limit = {
+        max_bytes = 4194304,    -- Large queue size (4MB)
+        max_segments = 3072     -- Large segment queue
+    },
+    reassemble_async = true,    -- This is a valid parameter
     small_segments = {
         count = 0,              -- Disable small segment protection
         maximum_size = 0
