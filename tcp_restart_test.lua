@@ -11,37 +11,33 @@ ips =
     ]]
 }
 
--- Stream configuration to handle reassembly
-stream = 
+-- Stream TCP module configuration
+stream_tcp = 
 {
-    tcp_cache = { max_sessions = 1024 },
-    tcp = 
+    -- Configure a very small segment limit to force reassembly conditions
+    small_segments = 
     {
-        -- Configure a very small segment limit to force reassembly conditions
-        small_segments = 
-        {
-            count = 3,
-            maximum_size = 16,
-        },
-        -- Set a very small flush point to force frequent flush operations
-        flush_factor = 10,
-        -- Set session timeout values low to force session state changes
-        session_timeout = 10,
-        max_window = 2048,
-        -- Enable all TCP reassembly options
-        policy = 'windows',
-        -- Enable TCP session restart on out-of-order data
-        session_on_syn = true,
-        reassemble_async = true,
-        -- Specifically enable midstream session pickup which can trigger restart()
-        midstream_allowed = true,
-        -- Generate events that might trigger the restart case
-        max_consec_small_segs = 3,
-        max_consec_small_seg_size = 16,
-        -- These options increase packet processing complexity
-        require_3whs = false,
-        overlap_limit = 5,
-    }
+        count = 3,
+        maximum_size = 16,
+    },
+    -- Set a very small flush point to force frequent flush operations
+    flush_factor = 10,
+    -- Set session timeout values low to force session state changes
+    session_timeout = 10,
+    max_window = 2048,
+    -- Enable all TCP reassembly options
+    policy = 'windows',
+    -- Enable TCP session restart on out-of-order data
+    session_on_syn = true,
+    reassemble_async = true,
+    -- Specifically enable midstream session pickup which can trigger restart()
+    midstream = true,
+    -- Generate events that might trigger the restart case
+    max_consec_small_segs = 3,
+    max_consec_small_seg_size = 16,
+    -- These options increase packet processing complexity
+    require_3whs = false,
+    overlap_limit = 5,
 }
 
 -- Configure output for debugging
