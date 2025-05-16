@@ -1,19 +1,17 @@
--- Minimal TCP configuration to reproduce TcpSession::restart() issue
+-- Extremely minimal configuration
 
--- Basic stream configuration
-stream = 
-{
-    -- Enable TCP processing
-    tcp = { }
-}
+-- Basic network configuration
+HOME_NET = 'any'
+EXTERNAL_NET = 'any'
 
--- Stream TCP module configuration - only essential parameters
-stream_tcp = 
-{
-    -- Enable midstream session pickup which can trigger restart()
-    midstream = true,
-    -- We don't need a 3-way handshake
-    require_3whs = false,
-    -- Windows policy is typically most permissive
-    policy = 'windows'
-}
+-- Default port variables
+HTTP_PORTS = '80'
+
+-- Stream and TCP inspector setup (basic default config)
+stream = { }
+stream_tcp = { }
+
+-- Include a basic rule to ensure something happens
+local_rules = [[
+alert tcp any any -> any any (msg:"TCP TEST"; sid:1000001; rev:1;)
+]]
