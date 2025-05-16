@@ -1,26 +1,8 @@
--- Ultra-minimal config targeting TCP reassembler without segment_timeout
-HOME_NET = "any"
-EXTERNAL_NET = "any"
-include 'snort_defaults.lua'
-
-stream = { }
+-- minimal_overlap_test.lua
 stream_tcp = {
-    policy = 'first',
-    flush_factor = 0,
-    queue_limit = { 
-        max_bytes = 1024,
-        max_segments = 5
-    },
-    small_segments = { 
-        count = 1, 
-        maximum_size = 1 
-    }
+    overlap_limit = 5  -- Set a low limit to trigger the alert quickly
 }
 
-ips = {
-    rules = [[
-        alert tcp any any -> any any (msg:"Trigger Flush"; content:"TRIGGER_FLUSH"; sid:1;)
-    ]]
-}
-
-alert_fast = { }
+local_rules = [[
+alert tcp any any -> any any (msg:"TCP TEST"; sid:1000001; rev:1;)
+]]
